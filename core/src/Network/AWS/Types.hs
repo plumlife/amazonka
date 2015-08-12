@@ -96,7 +96,7 @@ module Network.AWS.Types
     -- * HTTP
     , ClientRequest
     , ClientResponse
-    , ResponseBody
+    , BodyReader
     , clientRequest
 
     -- ** Seconds
@@ -123,7 +123,6 @@ import           Data.ByteString.Builder      (Builder)
 import qualified Data.ByteString.Builder      as Build
 import qualified Data.ByteString.Lazy.Char8   as LBS8
 import           Data.Coerce
-import           Data.Conduit
 import           Data.Data                    (Data, Typeable)
 import           Data.Hashable
 import           Data.IORef
@@ -154,10 +153,7 @@ import           Prelude
 type ClientRequest = Client.Request
 
 -- | A convenience alias encapsulating the common 'Response'.
-type ClientResponse = Client.Response ResponseBody
-
--- | A convenience alias encapsulating the common 'Response' body.
-type ResponseBody = ResumableSource (ResourceT IO) ByteString
+type ClientResponse = Client.Response BodyReader
 
 -- | Construct a 'ClientRequest' using common parameters such as TLS and prevent
 -- throwing errors when receiving erroneous status codes in respones.
@@ -434,12 +430,11 @@ class AWSService (Sv a) => AWSRequest a where
     type Sv a :: *
 
     request  :: a -> Request a
-    response :: MonadResource m
-             => Logger
+    response :: Logger
              -> Service s
              -> Request a
              -> ClientResponse
-             -> m (Response a)
+             -> IO (Response a)
 
 -- | Access key credential.
 newtype AccessKey = AccessKey ByteString

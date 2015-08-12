@@ -22,25 +22,25 @@ module Network.AWS.Internal.HTTP
 import           Control.Monad
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Resource
 import           Control.Retry
-import           Data.List                    (intersperse)
+import           Data.List                   (intersperse)
 import           Data.Monoid
 import           Data.Time
 import           Network.AWS.Env
 import           Network.AWS.Internal.Logger
 import           Network.AWS.Prelude
 import           Network.AWS.Waiter
-import           Network.HTTP.Conduit         hiding (Request, Response)
+import           Network.HTTP.Client         hiding (Request, Response)
 
 import           Prelude
 
-perform :: (MonadCatch m, MonadResource m, AWSSigner (Sg s), AWSRequest a)
+perform :: (AWSSigner (Sg s), AWSRequest a)
         => Env
         -> Service s
         -> Request a
-        -> m (Either Error (Response a))
-perform e@Env{..} svc x = catches go handlers
+        -> (Either Error (Response a) -> IO b)
+        -> IO b
+perform e@Env{..} svc x f = catches go handlers
   where
     go = do
         t          <- liftIO getCurrentTime
@@ -52,18 +52,16 @@ perform e@Env{..} svc x = catches go handlers
         logTrace _envLogger m  -- trace:Signing:Meta
         logDebug _envLogger rq -- debug:ClientRequest
 
-        rs         <- liftResourceT (http rq _envManager)
-
-        logDebug _envLogger rs -- debug:ClientResponse
-
-        Right <$>
-            response _envLogger svc x rs
+        withResponse rq _envManager $ \rs -> do
+            logDebug _envLogger rs -- debug:ClientResponse
+            y <- response _envLogger svc x rs
+            f (Right y)
 
     handlers =
-        [ Handler $ return . Left
+        [ Handler $ f . Left
         , Handler $ \er -> do
             logError _envLogger er
-            return (Left (TransportError er))
+            f (Left (TransportError er))
         ]
 
 retrier :: MonadIO m

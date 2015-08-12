@@ -14,12 +14,12 @@
 --
 module Network.AWS.Response where
 
+import           Control.Monad
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Resource
 import           Data.Aeson
-import           Data.Conduit
-import qualified Data.Conduit.Binary          as Conduit
+import qualified Data.ByteString.Lazy         as LBS
 import           Data.Monoid
 import           Data.Text                    (Text)
 import           Network.AWS.Data.Body
@@ -33,84 +33,83 @@ import           Text.XML                     (Node)
 
 import           Prelude
 
-receiveNull :: MonadResource m
-            => Rs a
-            -> Logger
-            -> Service s
-            -> Request a
-            -> ClientResponse
-            -> m (Response a)
-receiveNull rs _ = receive $ \_ _ x ->
-    liftResourceT (x $$+- return (Right rs))
+-- receiveNull :: MonadResource m
+--             => Rs a
+--             -> Logger
+--             -> Service s
+--             -> Request a
+--             -> ClientResponse
+--             -> m (Response a)
+-- receiveNull rs _ = receive $ \_ _ x ->
+--     liftResourceT (x $$+- return (Right rs))
 
-receiveEmpty :: MonadResource m
-             => (Int -> ResponseHeaders -> () -> Either String (Rs a))
-             -> Logger
-             -> Service s
-             -> Request a
-             -> ClientResponse
-             -> m (Response a)
-receiveEmpty f _ = receive $ \s h x ->
-    liftResourceT (x $$+- return (f s h ()))
+-- receiveEmpty :: MonadResource m
+--              => (Int -> ResponseHeaders -> () -> Either String (Rs a))
+--              -> Logger
+--              -> Service s
+--              -> Request a
+--              -> ClientResponse
+--              -> m (Response a)
+-- receiveEmpty f _ = receive $ \s h x ->
+--     liftResourceT (x $$+- return (f s h ()))
 
-receiveXMLWrapper :: MonadResource m
-                  => Text
-                  -> (Int -> ResponseHeaders -> [Node] -> Either String (Rs a))
-                  -> Logger
-                  -> Service s
-                  -> Request a
-                  -> ClientResponse
-                  -> m (Response a)
-receiveXMLWrapper n f = receiveXML (\s h x -> x .@ n >>= f s h)
+-- receiveXMLWrapper :: MonadResource m
+--                   => Text
+--                   -> (Int -> ResponseHeaders -> [Node] -> Either String (Rs a))
+--                   -> Logger
+--                   -> Service s
+--                   -> Request a
+--                   -> ClientResponse
+--                   -> m (Response a)
+-- receiveXMLWrapper n f = receiveXML (\s h x -> x .@ n >>= f s h)
 
-receiveXML :: MonadResource m
-           => (Int -> ResponseHeaders -> [Node] -> Either String (Rs a))
-           -> Logger
-           -> Service s
-           -> Request a
-           -> ClientResponse
-           -> m (Response a)
-receiveXML = deserialise decodeXML
+-- receiveXML :: MonadResource m
+--            => (Int -> ResponseHeaders -> [Node] -> Either String (Rs a))
+--            -> Logger
+--            -> Service s
+--            -> Request a
+--            -> ClientResponse
+--            -> m (Response a)
+-- receiveXML = deserialise decodeXML
 
-receiveJSON :: MonadResource m
-            => (Int -> ResponseHeaders -> Object -> Either String (Rs a))
-            -> Logger
-            -> Service s
-            -> Request a
-            -> ClientResponse
-            -> m (Response a)
-receiveJSON = deserialise eitherDecode'
+-- receiveJSON :: MonadResource m
+--             => (Int -> ResponseHeaders -> Object -> Either String (Rs a))
+--             -> Logger
+--             -> Service s
+--             -> Request a
+--             -> ClientResponse
+--             -> m (Response a)
+-- receiveJSON = deserialise eitherDecode'
 
-receiveBody :: MonadResource m
-            => (Int -> ResponseHeaders -> RsBody -> Either String (Rs a))
-            -> Logger
-            -> Service s
-            -> Request a
-            -> ClientResponse
-            -> m (Response a)
-receiveBody f _ = receive $ \s h x -> return (f s h (RsBody x))
+-- receiveBody :: MonadResource m
+--             => (Int -> ResponseHeaders -> RsBody -> Either String (Rs a))
+--             -> Logger
+--             -> Service s
+--             -> Request a
+--             -> ClientResponse
+--             -> m (Response a)
+-- receiveBody f _ = receive $ \s h x -> return (f s h (RsBody x))
 
-deserialise :: MonadResource m
-            => (LazyByteString -> Either String b)
-            -> (Int -> ResponseHeaders -> b -> Either String (Rs a))
-            -> Logger
-            -> Service s
-            -> Request a
-            -> ClientResponse
-            -> m (Response a)
-deserialise g f l = receive $ \s h x -> do
-    lbs <- sinkLBS x
-    liftIO . l Debug . build $ "[Raw Response Body] {\n" <> lbs <> "\n}"
-    return $! g lbs >>= f s h
+-- deserialise :: MonadResource m
+--             => (LazyByteString -> Either String b)
+--             -> (Int -> ResponseHeaders -> b -> Either String (Rs a))
+--             -> Logger
+--             -> Service s
+--             -> Request a
+--             -> ClientResponse
+--             -> m (Response a)
+-- deserialise g f l = receive $ \s h x -> do
+--     lbs <- consumeLBS x
+--     liftIO . l Debug . build $ "[Raw Response Body] {\n" <> lbs <> "\n}"
+--     return $! g lbs >>= f s h
 
-receive :: MonadResource m
-        => (Int -> ResponseHeaders -> ResponseBody -> m (Either String (Rs a)))
+receive :: (Int -> ResponseHeaders -> BodyReader -> IO (Either String (Rs a)))
         -> Service s
         -> Request a
         -> ClientResponse
-        -> m (Response a)
+        -> IO (Response a)
 receive f Service{..} _ rs
-    | not (_svcStatus s) = sinkLBS x >>= serviceErr
+    | not (_svcStatus s) = consumeLBS x >>= serviceErr
     | otherwise          = do
         p <- f (fromEnum s) h x
         either serializeErr
@@ -127,5 +126,5 @@ receive f Service{..} _ rs
     serializeErr :: MonadThrow m => String -> m a
     serializeErr e = throwM (SerializeError (SerializeError' _svcAbbrev s e))
 
-sinkLBS :: MonadResource m => ResponseBody -> m LazyByteString
-sinkLBS bdy = liftResourceT (bdy $$+- Conduit.sinkLbs)
+consumeLBS :: BodyReader -> IO LazyByteString
+consumeLBS = liftM LBS.fromChunks . brConsume

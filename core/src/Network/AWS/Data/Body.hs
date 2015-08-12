@@ -13,33 +13,31 @@
 --
 module Network.AWS.Data.Body where
 
-import           Control.Monad.Trans.Resource
 import           Data.Aeson
-import qualified Data.ByteString.Char8        as BS8
-import qualified Data.ByteString.Lazy         as LBS
-import qualified Data.ByteString.Lazy.Char8   as LBS8
-import           Data.Conduit
+import qualified Data.ByteString.Char8       as BS8
+import qualified Data.ByteString.Lazy        as LBS
+import qualified Data.ByteString.Lazy.Char8  as LBS8
 import           Data.String
-import           Data.Text                    (Text)
-import qualified Data.Text.Encoding           as Text
-import qualified Data.Text.Lazy               as LText
-import qualified Data.Text.Lazy.Encoding      as LText
+import           Data.Text                   (Text)
+import qualified Data.Text.Encoding          as Text
+import qualified Data.Text.Lazy              as LText
+import qualified Data.Text.Lazy.Encoding     as LText
 import           Network.AWS.Data.ByteString
 import           Network.AWS.Data.Crypto
-import           Network.AWS.Data.Query       (QueryString)
-import           Network.AWS.Data.XML         (encodeXML)
+import           Network.AWS.Data.Query      (QueryString)
+import           Network.AWS.Data.XML        (encodeXML)
 import           Network.HTTP.Client
-import           Text.XML                     (Element)
+import           Text.XML                    (Element)
 
 import           Prelude
 
--- | A streaming, exception safe response body.
+-- | An opaque streaming response body.
 newtype RsBody = RsBody
-    { bodyResponse :: ResumableSource (ResourceT IO) ByteString
+    { bodyResponse :: BodyReader
     }
 
 instance Show RsBody where
-    show = const "RsBody { ResumableSource (ResourceT IO) ByteString }"
+    show = const "RsBody { <#BodyReader> }"
 
 -- | An opaque request body containing a 'SHA256' hash.
 data RqBody = RqBody
