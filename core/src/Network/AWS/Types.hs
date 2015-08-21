@@ -25,38 +25,38 @@ module Network.AWS.Types
     (
     -- * Authentication
     -- ** Credentials
-      AccessKey       (..)
-    , SecretKey       (..)
-    , SessionToken    (..)
+      AccessKey      (..)
+    , SecretKey      (..)
+    , SessionToken   (..)
     -- ** Environment
-    , AuthEnv         (..)
-    , Auth            (..)
+    , AuthEnv        (..)
+    , Auth           (..)
     , withAuth
 
     -- * Logging
-    , LogLevel        (..)
+    , LogLevel       (..)
     , Logger
 
     -- * Services
     , Abbrev
-    , AWSService      (..)
-    , Service         (..)
+    , AWSService     (..)
+    , Service        (..)
     , serviceOf
 
     -- * Retries
-    , Retry           (..)
+    , Retry          (..)
 
     -- * Signing
-    , AWSSigner       (..)
-    , AWSPresigner    (..)
+    , AWSSigner      (..)
+    , AWSPresigner   (..)
     , Meta
-    , Signed          (..)
+    , Signed         (..)
     , sgMeta
     , sgRequest
 
     -- * Requests
-    , AWSRequest      (..)
-    , Request         (..)
+    , AWSRequest     (..)
+    , Request        (..)
     , rqMethod
     , rqHeaders
     , rqPath
@@ -64,20 +64,23 @@ module Network.AWS.Types
     , rqBody
 
     -- * Responses
-    , Response
+    , Response       (..)
+    , rsStatus
+    , rsRequestId
+    , rsResponse
 
     -- * Errors
-    , AsError      (..)
-    , Error        (..)
+    , AsError        (..)
+    , Error          (..)
     -- ** HTTP Errors
     , HttpException
     -- ** Serialize Errors
-    , SerializeError  (..)
+    , SerializeError (..)
     , serializeAbbrev
     , serializeStatus
     , serializeMessage
     -- ** Service Errors
-    , ServiceError    (..)
+    , ServiceError   (..)
     , serviceAbbrev
     , serviceStatus
     , serviceHeaders
@@ -85,13 +88,13 @@ module Network.AWS.Types
     , serviceMessage
     , serviceRequestId
     -- ** Error Types
-    , ErrorCode       (..)
-    , ErrorMessage    (..)
-    , RequestId       (..)
+    , ErrorCode      (..)
+    , ErrorMessage   (..)
+    , RequestId      (..)
 
     -- * Regions
-    , Endpoint        (..)
-    , Region          (..)
+    , Endpoint       (..)
+    , Region         (..)
 
     -- * HTTP
     , ClientRequest
@@ -100,7 +103,7 @@ module Network.AWS.Types
     , clientRequest
 
     -- ** Seconds
-    , Seconds         (..)
+    , Seconds        (..)
     , _Seconds
     , seconds
     , microseconds
@@ -120,8 +123,6 @@ import           Control.Monad.Trans.Resource
 import           Data.Aeson                   hiding (Error)
 import qualified Data.ByteString              as BS
 import           Data.ByteString.Builder      (Builder)
-import qualified Data.ByteString.Builder      as Build
-import qualified Data.ByteString.Lazy.Char8   as LBS8
 import           Data.Coerce
 import           Data.Conduit
 import           Data.Data                    (Data, Typeable)
@@ -208,7 +209,7 @@ instance ToLog SerializeError where
         [ "[SerializeError] {"
         , "  service = " <> build _serializeAbbrev
         , "  status  = " <> build _serializeStatus
-        , "  build = " <> build _serializeMessage
+        , "  message = " <> build _serializeMessage
         , "}"
         ]
 
@@ -236,7 +237,7 @@ instance ToLog ServiceError where
         , "  service    = " <> build _serviceAbbrev
         , "  status     = " <> build _serviceStatus
         , "  code       = " <> build _serviceCode
-        , "  build    = " <> build _serviceMessage
+        , "  message    = " <> build _serviceMessage
         , "  request-id = " <> build _serviceRequestId
         , "}"
         ]
@@ -333,6 +334,32 @@ data Service s = Service
     , _svcRetry    :: Retry
     }
 
+data Response a = Response
+    { _rsStatus    :: !Int
+    , _rsRequestId :: !(Maybe RequestId)
+    , _rsResponse  :: !(Rs a)
+    }
+
+rsStatus :: Lens' (Response a) Int
+rsStatus = lens _rsStatus (\s a -> s { _rsStatus = a })
+
+rsRequestId :: Lens' (Response a) (Maybe RequestId)
+rsRequestId = lens _rsRequestId (\s a -> s { _rsRequestId = a })
+
+rsResponse :: Lens' (Response a) (Rs a)
+rsResponse = lens _rsResponse (\s a -> s { _rsResponse = a })
+
+instance Show (Response a) where
+    show = buildString . build
+
+instance ToLog (Response a) where
+    build Response{..} = buildLines
+        [ "[Response Wrapper] {"
+        , "  status     = " <> build _rsStatus
+        , "  request-id = " <> build _rsRequestId
+        , "}"
+        ]
+
 -- | An unsigned request.
 data Request a = Request
     { _rqMethod    :: !StdMethod
@@ -343,7 +370,7 @@ data Request a = Request
     }
 
 instance Show (Request a) where
-    show = LBS8.unpack . Build.toLazyByteString . build
+    show = buildString . build
 
 instance ToLog (Request a) where
     build Request{..} = buildLines
@@ -422,8 +449,6 @@ class AWSSigner (Sg a) => AWSService a where
 
 serviceOf :: forall a. AWSService (Sv a) => a -> Service (Sv a)
 serviceOf = const $ service (Proxy :: Proxy a)
-
-type Response a = (Status, Rs a)
 
 -- | Specify how a request can be de/serialised.
 class AWSService (Sv a) => AWSRequest a where

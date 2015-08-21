@@ -76,9 +76,9 @@ matchAny x a l = match (anyOf l (== x)) a
 
 matchStatus :: Int -> Accept -> Acceptor a
 matchStatus x a _ = \case
-    Right (s, _) | x == fromEnum s                          -> Just a
-    Left  e      | Just x == (fromEnum <$> e ^? httpStatus) -> Just a
-    _                                                       -> Nothing
+    Right rs | x == fromEnum (_rsStatus rs)             -> Just a
+    Left  e  | Just x == (fromEnum <$> e ^? httpStatus) -> Just a
+    _                                                   -> Nothing
 
 matchError :: ErrorCode -> Accept -> Acceptor a
 matchError c a _ = \case
@@ -87,8 +87,8 @@ matchError c a _ = \case
 
 match :: (Rs a -> Bool) -> Accept -> Acceptor a
 match f a _ = \case
-    Right (_, rs) | f rs -> Just a
-    _                    -> Nothing
+    Right rs | f (_rsResponse rs) -> Just a
+    _                             -> Nothing
 
 nonEmpty :: Fold a Text -> Fold a Bool
 nonEmpty l = l . to Text.null

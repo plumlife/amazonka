@@ -55,3 +55,7 @@ f .!@ x = fromMaybe x <$> f
 may :: Applicative f => ([a] -> f b) -> [a] -> f (Maybe b)
 may _ [] = pure Nothing
 may f xs = Just <$> f xs
+
+-- The changes to Response wrapper means sharing
+-- can be removed for responses?
+--        --

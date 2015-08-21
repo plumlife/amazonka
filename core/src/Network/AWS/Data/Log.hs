@@ -19,6 +19,7 @@ import qualified Data.ByteString              as BS
 import           Data.ByteString.Builder      (Builder)
 import qualified Data.ByteString.Lazy         as LBS
 import qualified Data.ByteString.Lazy.Builder as Build
+import qualified Data.ByteString.Lazy.Char8   as LBS8
 import           Data.CaseInsensitive         (CI)
 import qualified Data.CaseInsensitive         as CI
 import           Data.Int
@@ -40,6 +41,13 @@ import           Network.HTTP.Types
 import           Numeric
 
 import           Prelude
+
+-- | Intercalate a list of 'Builder's with newlines.
+buildLines :: [Builder] -> Builder
+buildLines = mconcat . intersperse "\n"
+
+buildString :: Builder -> String
+buildString = LBS8.unpack . Build.toLazyByteString
 
 class ToLog a where
     -- | Convert a value to a loggable builder.
@@ -69,10 +77,6 @@ instance ToLog [Char]         where build = build . LText.pack
 instance ToLog StdMethod      where build = build . renderStdMethod
 instance ToLog QueryString    where build = build . toBS
 instance ToLog EscapedPath    where build = build . toBS
-
--- | Intercalate a list of 'Builder's with newlines.
-buildLines :: [Builder] -> Builder
-buildLines = mconcat . intersperse "\n"
 
 instance ToLog a => ToLog (CI a) where
     build = build . CI.foldedCase
